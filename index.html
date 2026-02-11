@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b0f0e" />
+  <title>SOC Ops Simulator — Tyler Seder</title>
+  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%230be17a' d='M32 2l26 10v17c0 16-11 28-26 33C17 57 6 45 6 29V12L32 2z'/%3E%3Cpath fill='%2300120a' d='M32 8l20 8v13c0 12-8 22-20 26C20 51 12 41 12 29V16l20-8z'/%3E%3Cpath fill='%230be17a' d='M20 31h24v4H20z'/%3E%3Cpath fill='%230be17a' d='M30 21h4v24h-4z'/%3E%3C/svg%3E" />
+</head>
+
+<body>
+  <div class="bg">
+    <div class="grid"></div>
+    <div class="glow g1"></div>
+    <div class="glow g2"></div>
+    <div class="noise"></div>
+  </div>
+
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div class="brand-text">
+        <div class="brand-title">SOC Ops Simulator</div>
+        <div class="brand-sub">Blue-team workflow sandbox • local-only • GitHub Pages</div>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button class="btn btn-ghost" id="btnCmd" title="Command Palette (Ctrl/⌘+K)">
+        <span class="ico">⌘</span> Command
+      </button>
+      <button class="btn btn-ghost" id="btnExport" title="Export simulator state as JSON">
+        <span class="ico">⤓</span> Export
+      </button>
+      <button class="btn btn-ghost" id="btnImport" title="Import simulator state from JSON">
+        <span class="ico">⤒</span> Import
+      </button>
+      <button class="btn btn-primary" id="btnGen" title="Toggle alert generator (G)">
+        <span class="dot"></span>
+        Generator: <span id="genState">ON</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar" role="navigation" aria-label="Primary">
+      <nav class="nav">
+        <button class="nav-item active" data-route="dashboard">
+          <span class="nav-ico">▦</span> Dashboard
+        </button>
+        <button class="nav-item" data-route="alerts">
+          <span class="nav-ico">⚠</span> Alerts
+        </button>
+        <button class="nav-item" data-route="cases">
+          <span class="nav-ico">🗂</span> Cases
+        </button>
+        <button class="nav-item" data-route="logs">
+          <span class="nav-ico">⌁</span> Log Explorer
+        </button>
+        <button class="nav-item" data-route="tools">
+          <span class="nav-ico">🛠</span> Tools
+        </button>
+        <button class="nav-item" data-route="playbooks">
+          <span class="nav-ico">📘</span> Playbooks
+        </button>
+        <button class="nav-item" data-route="settings">
+          <span class="nav-ico">⚙</span> Settings
+        </button>
+      </nav>
+
+      <div class="panel">
+        <div class="panel-title">Quick Triage</div>
+
+        <div class="field">
+          <label class="label" for="qSearch">Search alerts</label>
+          <input class="input" id="qSearch" placeholder="e.g., user:tseder severity:high phish" />
+          <div class="hint">Tip: use field:value (severity, source, user, host, tactic)</div>
+        </div>
+
+        <div class="row row-gap">
+          <button class="btn btn-chip" id="chipHigh">High</button>
+          <button class="btn btn-chip" id="chipMed">Medium</button>
+          <button class="btn btn-chip" id="chipLow">Low</button>
+          <button class="btn btn-chip" id="chipNew">New</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <label class="label" for="qAsset">Asset lookup</label>
+          <input class="input" id="qAsset" placeholder="hostname or owner..." />
+        </div>
+
+        <div class="mini-list" id="assetResults" aria-live="polite"></div>
+
+        <div class="divider"></div>
+
+        <div class="panel-title">Saved Queries</div>
+        <div class="mini-list" id="savedQueries"></div>
+        <button class="btn btn-ghost btn-full" id="btnSaveQuery">+ Save current alert search</button>
+      </div>
+
+      <footer class="sidebar-foot">
+        <div class="tiny">Built by <strong>Tyler Seder</strong> • SOC simulator for portfolio</div>
+        <div class="tiny muted">Keyboard: Ctrl/⌘+K palette • G generator • / focus search</div>
+      </footer>
+    </aside>
+
+    <main class="main" role="main" aria-label="Content">
+      <div id="toastHost" class="toast-host" aria-live="polite"></div>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <!-- Modals -->
+  <div class="modal-backdrop hidden" id="backdrop"></div>
+
+  <section class="modal hidden" id="modalCmd" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="modal-head">
+      <div class="modal-title">Command Palette</div>
+      <button class="btn btn-ghost" id="cmdClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <input class="input input-lg" id="cmdInput" placeholder="Type a command… (e.g., 'new case', 'export', 'logs')" />
+      <div class="cmd-list" id="cmdList"></div>
+    </div>
+    <div class="modal-foot">
+      <div class="tiny muted">Use ↑ ↓ to navigate • Enter to run • Esc to close</div>
+    </div>
+  </section>
+
+  <section class="modal hidden" id="modalConfirm" role="dialog" aria-modal="true" aria-label="Confirm action">
+    <div class="modal-head">
+      <div class="modal-title" id="confirmTitle">Confirm</div>
+      <button class="btn btn-ghost" id="confirmClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted" id="confirmBody">Are you sure?</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+      <button class="btn btn-primary" id="confirmOk">OK</button>
+    </div>
+  </section>
+
+  <input type="file" id="fileImport" class="hidden" accept="application/json" />
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
